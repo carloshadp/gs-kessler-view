@@ -5,6 +5,9 @@ import { missionApi } from '../api/missionApi'
 import { alertApi } from '../api/alertApi'
 import { StatCard } from '../components/ui/StatCard'
 import { Badge } from '../components/ui/Badge'
+import client from '../api/client'
+
+type WakeStatus = 'idle' | 'loading' | 'ok' | 'error'
 
 const REFRESH_INTERVAL = 30_000
 
@@ -16,6 +19,20 @@ export function Dashboard() {
 
   const [lastRefresh, setLastRefresh] = useState(new Date())
   const [nextIn, setNextIn] = useState(REFRESH_INTERVAL / 1000)
+  const [wakeStatus, setWakeStatus] = useState<WakeStatus>('idle')
+
+  async function handleWakeUp() {
+    setWakeStatus('loading')
+    try {
+      await client.get('/debris', { timeout: 60000 })
+      setWakeStatus('ok')
+      reloadDebris(); reloadMissions(); reloadAlerts(); reloadCritical()
+      setTimeout(() => setWakeStatus('idle'), 4000)
+    } catch {
+      setWakeStatus('error')
+      setTimeout(() => setWakeStatus('idle'), 4000)
+    }
+  }
 
   useEffect(() => {
     const refresh = setInterval(() => {
@@ -63,6 +80,39 @@ export function Dashboard() {
             Última: {lastRefresh.toLocaleTimeString('pt-BR')}
           </p>
         </div>
+      </div>
+
+      {/* Wake up API */}
+      <div style={{ marginBottom: 24, padding: '14px 20px', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20 }}>
+        <div>
+          <p style={{ fontSize: 13, fontWeight: 600, color: '#92400e', marginBottom: 4 }}>Servidor em modo de espera?</p>
+          <p style={{ fontSize: 12, color: '#a16207', lineHeight: 1.5 }}>
+            O backend fica inativo após períodos sem uso (plano gratuito). Se os dados não carregarem, clique para acordar o servidor antes de continuar.
+          </p>
+        </div>
+        <button
+          onClick={handleWakeUp}
+          disabled={wakeStatus === 'loading'}
+          style={{
+            flexShrink: 0,
+            padding: '8px 16px',
+            borderRadius: 8,
+            border: '1px solid',
+            borderColor: wakeStatus === 'ok' ? '#86efac' : wakeStatus === 'error' ? '#fca5a5' : '#fcd34d',
+            backgroundColor: wakeStatus === 'ok' ? '#f0fdf4' : wakeStatus === 'error' ? '#fef2f2' : '#ffffff',
+            color: wakeStatus === 'ok' ? '#16a34a' : wakeStatus === 'error' ? '#dc2626' : '#92400e',
+            fontSize: 13,
+            fontWeight: 700,
+            cursor: wakeStatus === 'loading' ? 'wait' : 'pointer',
+            whiteSpace: 'nowrap',
+            transition: 'all 0.2s',
+          }}
+        >
+          {wakeStatus === 'loading' && '⏳ Acordando...'}
+          {wakeStatus === 'ok' && '✓ API pronta!'}
+          {wakeStatus === 'error' && '✗ Sem resposta'}
+          {wakeStatus === 'idle' && '⚡ Acordar API'}
+        </button>
       </div>
 
       {/* Stats grid */}
